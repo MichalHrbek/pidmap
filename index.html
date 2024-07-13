@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>PID Map</title>
+	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+	<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+	<style>
+		html, body {
+			height: 100%;
+			margin: 0;
+		}
+		#map {
+			position: absolute;
+			left: 0;
+			height: 100%;
+			width: 80%;
+			border-right: 2px solid;
+		}
+		#filterbox {
+			position: absolute;
+			right: 0;
+			height: 100%;
+			width: 20%;
+			font-family: Arial, sans-serif;
+		}
+		#filterbox > h1 {
+			text-align: center;
+		}
+		#filterbox > div {
+			margin-left: 5%;
+			margin-right: 5%;
+		}
+		.bigbutton {
+			padding: 5% 10%;
+			text-align: center;
+			font-size: 16px;
+		}
+	</style>
+</head>
+<body>
+	<div id="map"></div>
+	<div id="filterbox">
+		<h1>Filter options</h1>
+		<div>
+			<h4>Line types</h4>
+			<label for="regional">Regional:</label>
+			<input type="checkbox" id="regional"><br>
+			<label for="night">Night:</label>
+			<input type="checkbox" id="night"><br>
+			<label for="substitute">Substitute:</label>
+			<input type="checkbox" id="substitute"><br>
+			<h4>Vehicle types</h4>
+			<label for="tram">Tram:</label>
+			<input type="checkbox" id="tram" checked><br>
+			<label for="metro">Metro:</label>
+			<input type="checkbox" id="metro" checked><br>
+			<label for="train">Train:</label>
+			<input type="checkbox" id="train" checked><br>
+			<label for="bus">Bus:</label>
+			<input type="checkbox" id="bus" checked><br>
+			<label for="metro">Ferry:</label>
+			<input type="checkbox" id="ferry" checked><br>
+			<label for="funicular">Funicular:</label>
+			<input type="checkbox" id="funicular" checked><br>
+			<label for="trolleybus">Trolleybus:</label>
+			<input type="checkbox" id="trolleybus" checked><br>
+			<br>
+			<button onclick="update()" class="bigbutton">Update</button>
+		</div>
+		<h1>Info</h1>
+		<div>
+			<p>Interactive map of the public transport routes in <a href="https://pid.cz/o-systemu/opendata/">PID</a>. The data itself comes from <a href="https://data.pid.cz/geodata/Linky_WGS84.json">here</a> and is licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC-BY</a>.</p>
+		</div>
+	</div>
+</body>
+</html>
+
+<script>
+	// https://storage.golemio.cz/lkod/ropid/7a430e0e-eb8d-4039-b35e-57fd3a55c9c9/atributy_linky.html
+	// https://data.pid.cz/geodata/Linky_WGS84.json
+	// https://pid.cz/o-systemu/opendata/
+	
+	const VehicleType = {
+		Tram: "0",
+		Metro: "1",
+		Train: "2",
+		Bus: "3",
+		Ferry: "4",
+		Funicular: "7",
+		Trolleybus: "11",
+	};
+
+	var map = L.map('map').setView([49.8022514, 15.6252330], 8);
+	var layer;
+	var geoJsonLines;
+
+	main();
+
+	async function main() {
+		L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+			attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+		}).addTo(map);
+
+		geoJsonLines = await (await fetch("Linky_WGS84.json")).json();
+
+		update();
+	}
+
+	function update() {
+		if (layer) {
+			map.removeLayer(layer);
+		}
+
+		layer = L.geoJSON(geoJsonLines, {
+			style: styleFeature,
+			onEachFeature: onEachFeature,
+			filter: filterFeature,
+		}).addTo(map);
+	}
+
+	function styleFeature(feature) {
+		let style = {color: "#" + feature.properties.route_color}
+		if (feature.properties.route_type == VehicleType.Metro) {
+			style.weight = 5;
+		}
+		return style;
+	}
+
+	function onEachFeature(feature, layer) {
+		if (feature.properties) {
+			let popup = `<a href="${feature.properties.route_url}"><h2>${feature.properties.route_short_name}</h2></a>
+			<h3>${feature.properties.route_long_name}</h3>
+			<b>Regional: </b> <input type="checkbox" disabled ${feature.properties.is_regional == "1" ? "checked" : ""}/><br>
+			<b>Night: </b> <input type="checkbox" disabled ${feature.properties.is_night == "1" ? "checked" : ""}/><br>
+			<b>Substitute: </b> <input type="checkbox" disabled ${feature.properties.is_substitute_transport == "1" ? "checked" : ""}/><br>`
+			layer.bindPopup(popup);
+		}
+	}
+
+	function filterFeature(feature, layer) {
+		if (
+			(!window.regional.checked && feature.properties.is_regional == "1") ||
+			(!window.night.checked && feature.properties.is_night == "1") ||
+			(!window.substitute.checked && feature.properties.is_substitute_transport == "1") ||
+			(!window.tram.checked && feature.properties.route_type == VehicleType.Tram) ||
+			(!window.metro.checked && feature.properties.route_type == VehicleType.Metro) ||
+			(!window.train.checked && feature.properties.route_type == VehicleType.Train) ||
+			(!window.bus.checked && feature.properties.route_type == VehicleType.Bus) ||
+			(!window.ferry.checked && feature.properties.route_type == VehicleType.Ferry) ||
+			(!window.funicular.checked && feature.properties.route_type == VehicleType.Funicular) ||
+			(!window.trolleybus.checked && feature.properties.route_type == VehicleType.Trolleybus)
+		) {
+			return false;
+		}
+		return true;
+	}
+</script>
