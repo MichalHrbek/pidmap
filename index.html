@@ -33,9 +33,12 @@
 			margin-right: 5%;
 		}
 		.bigbutton {
-			padding: 5% 10%;
+			padding: 4% 4%;
 			text-align: center;
 			font-size: 16px;
+		}
+		.stopicon {
+			background: rgba(255, 255, 255, 0.5);
 		}
 	</style>
 </head>
@@ -66,20 +69,32 @@
 			<input type="checkbox" id="funicular" checked><br>
 			<label for="trolleybus">Trolleybus:</label>
 			<input type="checkbox" id="trolleybus" checked><br>
+			<label for="unknown">Unknown:</label>
+			<input type="checkbox" id="unknown" checked><br>
 			<br>
-			<button onclick="update()" class="bigbutton">Update</button>
+			<button onclick="updateLines()" class="bigbutton">Update lines</button>
+		</div>
+		<h1>Stops</h1>
+		<div>
+			<label for="drawstops">Draw stops when zoomed in:</label>
+			<input type="checkbox" id="drawstops" checked><br>
+			<label for="ignoreempty">Ignore stops with no lines:</label>
+			<input type="checkbox" id="ignoreempty"><br>
+			<br>
+			<button onclick="drawStops()" class="bigbutton">Draw stops in view</button>
+			<button onclick="clearStops()" class="bigbutton">Clear stops</button>
 		</div>
 		<h1>Info</h1>
 		<div>
-			<p>Interactive map of the public transport routes in <a href="https://pid.cz/o-systemu/opendata/">PID</a>. The data itself comes from <a href="https://data.pid.cz/geodata/Linky_WGS84.json">here</a> and is licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC-BY</a>.</p>
+			<p>Interactive map of the public transport routes in <a href="https://pid.cz/o-systemu/opendata/">PID</a>. The data is provided by PID and licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC-BY</a>.</p>
 		</div>
 	</div>
 </body>
 </html>
 
 <script>
-	// https://storage.golemio.cz/lkod/ropid/7a430e0e-eb8d-4039-b35e-57fd3a55c9c9/atributy_linky.html
 	// https://data.pid.cz/geodata/Linky_WGS84.json
+	// https://data.pid.cz/stops/json/stops.json
 	// https://pid.cz/o-systemu/opendata/
 	
 	const VehicleType = {
@@ -93,8 +108,47 @@
 	};
 
 	var map = L.map('map').setView([49.8022514, 15.6252330], 8);
-	var layer;
+	
+	var linesLayer;
+	var stopsLayer = L.layerGroup().addTo(map);
+
 	var geoJsonLines;
+	var stopsJson;
+	
+	var icons = {
+		"tram":			L.icon({iconSize: [24, 24],	iconAnchor: [12, 12], className: "stopicon", iconUrl: 'icons/ic--baseline-tram.svg'}),
+		"metroA":		L.icon({iconSize: [24, 24],	iconAnchor: [12, 12], className: "stopicon", iconUrl: 'icons/ic--baseline-subway.svg'}),
+		"metroB":		L.icon({iconSize: [24, 24],	iconAnchor: [12, 12], className: "stopicon", iconUrl: 'icons/ic--baseline-subway.svg'}),
+		"metroC":		L.icon({iconSize: [24, 24],	iconAnchor: [12, 12], className: "stopicon", iconUrl: 'icons/ic--baseline-subway.svg'}),
+		"train":		L.icon({iconSize: [24, 24],	iconAnchor: [12, 12], className: "stopicon", iconUrl: 'icons/ic--baseline-train.svg'}),
+		"bus":			L.icon({iconSize: [24, 24],	iconAnchor: [12, 12], className: "stopicon", iconUrl: 'icons/ic--baseline-directions-bus.svg'}),
+		"ferry":		L.icon({iconSize: [24, 24],	iconAnchor: [12, 12], className: "stopicon", iconUrl: 'icons/ic--baseline-directions-boat.svg'}),
+		"funicular":	L.icon({iconSize: [24, 24],	iconAnchor: [12, 12], className: "stopicon", iconUrl: 'icons/ic--baseline-trip-origin.svg'}), // Don't have a correct icon
+		"trolleybus":	L.icon({iconSize: [24, 24],	iconAnchor: [12, 12], className: "stopicon", iconUrl: 'icons/ic--baseline-directions-bus.svg'}), // Don't have a correct icon
+		
+		"undefined":	L.icon({iconSize: [24, 24],	iconAnchor: [12, 12], className: "stopicon", iconUrl: 'icons/ic--baseline-trip-origin.svg'}),
+	};
+
+	var emoji = {
+		"tram": "🚊",
+		"0": "🚊",
+		"metro": "🚇",
+		"1": "🚇",
+		"metroA": "🚇",
+		"metroB": "🚇",
+		"metroC": "🚇",
+		"train": "🚆",
+		"2": "🚆",
+		"bus": "🚌",
+		"3": "🚌",
+		"ferry": "🛥️",
+		"4": "🛥️",
+		"funicular": "🚡",
+		"7": "🚡",
+		"trolleybus": "🚎",
+		"11": "🚎",
+		"undefined": "🚏",
+	};
 
 	main();
 
@@ -103,24 +157,68 @@
 			attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 		}).addTo(map);
 
-		geoJsonLines = await (await fetch("Linky_WGS84.json")).json();
+		map.on('zoomend', stopsLOD);
+		map.on('moveend', stopsLOD);
 
-		update();
+		geoJsonLines = await (await fetch("Linky_WGS84.json")).json();
+		stopsJson = await (await fetch("stops.json")).json();
+
+		// drawStops();
+		updateLines();
 	}
 
-	function update() {
-		if (layer) {
-			map.removeLayer(layer);
+	function stopsLOD() {
+		if (!window.drawstops.checked) return;
+		if (map.getZoom() < 15) return;
+		drawStops();
+	}
+
+	function drawStops() {
+		let bounds = map.getBounds();
+		for (let i = 0; i < stopsJson.stopGroups.length; i++) {
+			for (let j = 0; j < stopsJson.stopGroups[i].stops.length; j++) {
+				let stop = stopsJson.stopGroups[i].stops[j];
+				if (stop.drawn) continue;
+				if (!filterStop(stop)) continue;
+				if (bounds.contains([stop.lat, stop.lon])) {
+					L.marker([stop.lat, stop.lon]).addTo(stopsLayer)
+						.bindPopup(() => stopPopup(stop))
+						.setIcon(icons[stop.mainTrafficType]);
+					stop.drawn = true;
+				}
+			}
+		}
+	}
+
+	function clearStops() {
+		stopsJson.stopGroups.forEach(group => group.stops.forEach(stop => stop.drawn = false));
+		map.removeLayer(stopsLayer);
+		stopsLayer = L.layerGroup().addTo(map);
+	}
+
+	function stopPopup(stop) {
+		popup = `<h3>${stop.altIdosName} ${emoji[stop.mainTrafficType]}</h3>`;
+		stop.lines.forEach(line => popup += lineText(line));
+		return popup;
+	}
+
+	function lineText(line) {
+		return `<b>${emoji[line.type]} ${line.name} - ${line.direction}</b><br>`;
+	}
+
+	function updateLines() {
+		if (linesLayer) {
+			map.removeLayer(linesLayer);
 		}
 
-		layer = L.geoJSON(geoJsonLines, {
-			style: styleFeature,
-			onEachFeature: onEachFeature,
-			filter: filterFeature,
+		linesLayer = L.geoJSON(geoJsonLines, {
+			style: styleLine,
+			onEachFeature: onEachLine,
+			filter: filterLine,
 		}).addTo(map);
 	}
 
-	function styleFeature(feature) {
+	function styleLine(feature) {
 		let style = {color: "#" + feature.properties.route_color}
 		if (feature.properties.route_type == VehicleType.Metro) {
 			style.weight = 5;
@@ -128,29 +226,51 @@
 		return style;
 	}
 
-	function onEachFeature(feature, layer) {
+	function onEachLine(feature, layer) {
 		if (feature.properties) {
-			let popup = `<a href="${feature.properties.route_url}"><h2>${feature.properties.route_short_name}</h2></a>
-			<h3>${feature.properties.route_long_name}</h3>
-			<b>Regional: </b> <input type="checkbox" disabled ${feature.properties.is_regional == "1" ? "checked" : ""}/><br>
-			<b>Night: </b> <input type="checkbox" disabled ${feature.properties.is_night == "1" ? "checked" : ""}/><br>
-			<b>Substitute: </b> <input type="checkbox" disabled ${feature.properties.is_substitute_transport == "1" ? "checked" : ""}/><br>`
-			layer.bindPopup(popup);
+			layer.bindPopup(() => linePopup(feature.properties));
 		}
 	}
 
-	function filterFeature(feature, layer) {
+	function linePopup(properties) {
+		return `<h2><a href="${properties.route_url}">${properties.route_short_name}</a> ${emoji[properties.route_type]}</h2>
+				<h3>${properties.route_long_name}</h3>
+				<b>Regional: </b> <input type="checkbox" disabled ${properties.is_regional == "1" ? "checked" : ""}/><br>
+				<b>Night: </b> <input type="checkbox" disabled ${properties.is_night == "1" ? "checked" : ""}/><br>
+				<b>Substitute: </b> <input type="checkbox" disabled ${properties.is_substitute_transport == "1" ? "checked" : ""}/><br>`
+	}
+
+	function filterStop(stop) {
+		let type = stop.mainTrafficType;
+		if (window.ignoreempty.checked && stop.lines.length == 0) return false;
+		if (
+			(!window.tram.checked && type == "tram") ||
+			(!window.metro.checked && type.startsWith("metro")) ||
+			(!window.train.checked && type == "train") ||
+			(!window.bus.checked && type == "bus") ||
+			(!window.ferry.checked && type == "ferry") ||
+			(!window.funicular.checked && type == "funicular") ||
+			(!window.trolleybus.checked && type == "trolleybus") ||
+			(!window.unknown.checked && type == "undefined")
+		) {
+			return false;
+		}
+		return true;
+	}
+
+	function filterLine(feature, layer) {
+		let type = feature.properties.route_type;
 		if (
 			(!window.regional.checked && feature.properties.is_regional == "1") ||
 			(!window.night.checked && feature.properties.is_night == "1") ||
 			(!window.substitute.checked && feature.properties.is_substitute_transport == "1") ||
-			(!window.tram.checked && feature.properties.route_type == VehicleType.Tram) ||
-			(!window.metro.checked && feature.properties.route_type == VehicleType.Metro) ||
-			(!window.train.checked && feature.properties.route_type == VehicleType.Train) ||
-			(!window.bus.checked && feature.properties.route_type == VehicleType.Bus) ||
-			(!window.ferry.checked && feature.properties.route_type == VehicleType.Ferry) ||
-			(!window.funicular.checked && feature.properties.route_type == VehicleType.Funicular) ||
-			(!window.trolleybus.checked && feature.properties.route_type == VehicleType.Trolleybus)
+			(!window.tram.checked && type == VehicleType.Tram) ||
+			(!window.metro.checked && type == VehicleType.Metro) ||
+			(!window.train.checked && type == VehicleType.Train) ||
+			(!window.bus.checked && type == VehicleType.Bus) ||
+			(!window.ferry.checked && type == VehicleType.Ferry) ||
+			(!window.funicular.checked && type == VehicleType.Funicular) ||
+			(!window.trolleybus.checked && type == VehicleType.Trolleybus)
 		) {
 			return false;
 		}
