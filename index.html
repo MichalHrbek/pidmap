@@ -115,7 +115,7 @@
 	var geoJsonLines;
 	var stopsJson;
 	
-	var icons = {
+	const icons = {
 		"tram":			L.icon({iconSize: [24, 24],	iconAnchor: [12, 12], className: "stopicon", iconUrl: 'icons/ic--baseline-tram.svg'}),
 		"metroA":		L.icon({iconSize: [24, 24],	iconAnchor: [12, 12], className: "stopicon", iconUrl: 'icons/ic--baseline-subway.svg'}),
 		"metroB":		L.icon({iconSize: [24, 24],	iconAnchor: [12, 12], className: "stopicon", iconUrl: 'icons/ic--baseline-subway.svg'}),
@@ -129,7 +129,7 @@
 		"undefined":	L.icon({iconSize: [24, 24],	iconAnchor: [12, 12], className: "stopicon", iconUrl: 'icons/ic--baseline-trip-origin.svg'}),
 	};
 
-	var emoji = {
+	const emoji = {
 		"tram": "🚊",
 		"0": "🚊",
 		"metro": "🚇",
@@ -203,7 +203,7 @@
 	}
 
 	function lineText(line) {
-		return `<b>${emoji[line.type]} ${line.name} - ${line.direction}</b><br>`;
+		return `<b>${emoji[line.type]} ${line.name} - ${line.direction} </b><button onclick="highlightLine(${line.id})">🔍</button><br>`;
 	}
 
 	function updateLines() {
@@ -220,6 +220,7 @@
 
 	function styleLine(feature) {
 		let style = {color: "#" + feature.properties.route_color}
+		style.weight = 3;
 		if (feature.properties.route_type == VehicleType.Metro) {
 			style.weight = 5;
 		}
@@ -233,11 +234,25 @@
 	}
 
 	function linePopup(properties) {
-		return `<h2><a href="${properties.route_url}">${properties.route_short_name}</a> ${emoji[properties.route_type]}</h2>
+		return `<h2><a href="${properties.route_url}">${properties.route_short_name}</a> ${emoji[properties.route_type]} <button onclick="highlightLine('${properties.route_id}')">🔍</button></h2>
 				<h3>${properties.route_long_name}</h3>
 				<b>Regional: </b> <input type="checkbox" disabled ${properties.is_regional == "1" ? "checked" : ""}/><br>
 				<b>Night: </b> <input type="checkbox" disabled ${properties.is_night == "1" ? "checked" : ""}/><br>
 				<b>Substitute: </b> <input type="checkbox" disabled ${properties.is_substitute_transport == "1" ? "checked" : ""}/><br>`
+	}
+
+	function highlightLine(id) {
+		if (typeof(id) == "number") id = `L${id}`;
+
+		linesLayer.eachLayer((layer) => {
+			if (layer.feature.properties.route_id == id) {
+				let style = styleLine(layer.feature);
+				style.weight += 4;
+				layer.setStyle(style);
+				map.fitBounds(layer.getBounds());
+				setTimeout(() => layer.setStyle(styleLine(layer.feature)), 4000)
+			}
+		});
 	}
 
 	function filterStop(stop) {
