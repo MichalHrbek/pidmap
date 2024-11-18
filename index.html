@@ -50,32 +50,30 @@
 		<div>
 			<h4>Line types</h4>
 			<label for="normal">Normal:</label>
-			<input type="checkbox" id="normal" checked><br>
+			<input type="checkbox" id="normal" onchange="updateLines()" checked><br>
 			<label for="regional">Regional:</label>
-			<input type="checkbox" id="regional"><br>
+			<input type="checkbox" id="regional" onchange="updateLines()"><br>
 			<label for="night">Night:</label>
-			<input type="checkbox" id="night"><br>
+			<input type="checkbox" id="night" onchange="updateLines()"><br>
 			<label for="substitute">Substitute:</label>
-			<input type="checkbox" id="substitute"><br>
+			<input type="checkbox" id="substitute" onchange="updateLines()"><br>
 			<h4>Vehicle types</h4>
 			<label for="tram">Tram:</label>
-			<input type="checkbox" id="tram" checked><br>
+			<input type="checkbox" id="tram" onchange="updateLines()" checked><br>
 			<label for="metro">Metro:</label>
-			<input type="checkbox" id="metro" checked><br>
+			<input type="checkbox" id="metro" onchange="updateLines()" checked><br>
 			<label for="train">Train:</label>
-			<input type="checkbox" id="train" checked><br>
+			<input type="checkbox" id="train" onchange="updateLines()" checked><br>
 			<label for="bus">Bus:</label>
-			<input type="checkbox" id="bus" checked><br>
+			<input type="checkbox" id="bus" onchange="updateLines()" checked><br>
 			<label for="metro">Ferry:</label>
-			<input type="checkbox" id="ferry" checked><br>
+			<input type="checkbox" id="ferry" onchange="updateLines()" checked><br>
 			<label for="funicular">Funicular:</label>
-			<input type="checkbox" id="funicular" checked><br>
+			<input type="checkbox" id="funicular" onchange="updateLines()" checked><br>
 			<label for="trolleybus">Trolleybus:</label>
-			<input type="checkbox" id="trolleybus" checked><br>
+			<input type="checkbox" id="trolleybus" onchange="updateLines()" checked><br>
 			<label for="unknown">Unknown:</label>
-			<input type="checkbox" id="unknown" checked><br>
-			<br>
-			<button onclick="updateLines()" class="bigbutton">Update lines</button>
+			<input type="checkbox" id="unknown" onchange="updateLines()" checked><br>
 		</div>
 		<h1>Stops</h1>
 		<div>
