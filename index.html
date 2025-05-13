@@ -90,7 +90,7 @@
 		</div>
 		<h1>Custom</h1>
 		<div>
-			<input type="text" placeholder="Space separated lines (ex.: '319 B 9 S8')" onchange="updateSelectedLines()" id="selectedlinesinput"><br>
+			<input type="text" placeholder="Comma separated lines (ex.: '319, B, 9, S8')" onchange="updateSelectedLines()" id="selectedlinesinput"><br>
 		</div>
 		<h1>Info</h1>
 		<div>
@@ -217,7 +217,7 @@
 	function updateSelectedLines() {
 		const text = window.selectedlinesinput.value.trim();
 		if (text) {
-			selected_lines = text.split(" ")
+			selected_lines = text.split(",").map((s) => s.trim());
 		} else {
 			selected_lines = [];
 		}
