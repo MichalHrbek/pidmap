@@ -41,6 +41,9 @@
 		.stopicon {
 			background: rgba(255, 255, 255, 0.5);
 		}
+		input[type=text] {
+			width: 100%;
+		}
 	</style>
 </head>
 <body>
@@ -85,6 +88,10 @@
 			<button onclick="drawStops()" class="bigbutton">Draw stops in view</button>
 			<button onclick="clearStops()" class="bigbutton">Clear stops</button>
 		</div>
+		<h1>Custom</h1>
+		<div>
+			<input type="text" placeholder="Space separated lines (ex.: '319 B 9 S8')" onchange="updateSelectedLines()" id="selectedlinesinput"><br>
+		</div>
 		<h1>Info</h1>
 		<div>
 			<p>Interactive map of the public transport routes in <a href="https://pid.cz/o-systemu/opendata/">PID</a>. The data is provided by PID and licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC-BY</a>.</p>
@@ -115,6 +122,7 @@
 
 	var geoJsonLines;
 	var stopsJson;
+	var selected_lines = [];
 	
 	const icons = {
 		"tram":			L.icon({iconSize: [24, 24],	iconAnchor: [12, 12], className: "stopicon", iconUrl: 'icons/ic--baseline-tram.svg'}),
@@ -159,7 +167,7 @@
 		}).addTo(map);
 
 		geoJsonLines = await (await fetch("Linky_WGS84.json")).json();
-		updateLines();
+		updateSelectedLines();
 
 		stopsJson = await (await fetch("stops.json")).json();
 		map.on('zoomend', stopsLOD);
@@ -204,6 +212,16 @@
 
 	function lineText(line) {
 		return `<b>${emoji[line.type]} ${line.name} - ${line.direction} </b><button onclick="highlightLine(${line.id})">🔍</button><br>`;
+	}
+
+	function updateSelectedLines() {
+		const text = window.selectedlinesinput.value.trim();
+		if (text) {
+			selected_lines = text.split(" ")
+		} else {
+			selected_lines = [];
+		}
+		updateLines();
 	}
 
 	function updateLines() {
@@ -274,6 +292,9 @@
 	}
 
 	function filterLine(feature, layer) {
+		if(selected_lines.length > 0) {
+			return selected_lines.includes(feature.properties.route_short_name);
+		}
 		let type = feature.properties.route_type;
 		if (
 			(!window.normal.checked && !(feature.properties.is_regional == "1" || feature.properties.is_night == "1" || feature.properties.is_substitute_transport == "1")) ||
